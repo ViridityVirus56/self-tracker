@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -27,6 +27,10 @@ export default function WorkoutPage() {
 
   const [newExercise, setNewExercise] = useState("")
   const [isExerciseOpen, setIsExerciseOpen] = useState(false)
+
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null)
+  const [editExerciseName, setEditExerciseName] = useState("")
+  const [isEditExerciseOpen, setIsEditExerciseOpen] = useState(false)
 
   const [selectedDay, setSelectedDay] = useState<string>("0")
   const [selectedScheduleExercise, setSelectedScheduleExercise] = useState<string>("")
@@ -69,6 +73,34 @@ export default function WorkoutPage() {
       setIsExerciseOpen(false)
       fetchData()
     }
+  }
+
+  const handleUpdateExercise = async () => {
+    if (!editingExercise || !editExerciseName) return
+    const res = await fetch(`/api/exercises?id=${editingExercise.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: editExerciseName }),
+    })
+    if (res.ok) {
+      setIsEditExerciseOpen(false)
+      fetchData()
+    }
+  }
+
+  const handleDeleteExercise = async () => {
+    if (!editingExercise) return
+    const res = await fetch(`/api/exercises?id=${editingExercise.id}`, { method: "DELETE" })
+    if (res.ok) {
+      setIsEditExerciseOpen(false)
+      fetchData()
+    }
+  }
+
+  const openEditExercise = (ex: Exercise) => {
+    setEditingExercise(ex)
+    setEditExerciseName(ex.name)
+    setIsEditExerciseOpen(true)
   }
 
   const handleAddSchedule = async () => {
@@ -157,21 +189,25 @@ export default function WorkoutPage() {
                       <Label>Exercise</Label>
                       <Select value={setExerciseId} onValueChange={(val) => val && setSetExerciseId(val)}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select exercise" />
+                          <span className={`flex-1 text-left truncate ${!setExerciseId ? 'text-muted-foreground' : ''}`}>
+                            {setExerciseId ? exercises.find(e => e.id === setExerciseId)?.name : "Select exercise"}
+                          </span>
                         </SelectTrigger>
                         <SelectContent>
                           {scheduledExercises.length > 0 && (
-                            <>
-                              <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">Today's Schedule</div>
+                            <SelectGroup>
+                              <SelectLabel>Today's Schedule</SelectLabel>
                               {scheduledExercises.map(e => (
                                 <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
                               ))}
-                            </>
+                            </SelectGroup>
                           )}
-                          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground mt-2">Other Exercises</div>
-                          {otherExercises.map(e => (
-                            <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
-                          ))}
+                          <SelectGroup>
+                            <SelectLabel>Other Exercises</SelectLabel>
+                            {otherExercises.map(e => (
+                              <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                            ))}
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                     </div>
@@ -249,7 +285,9 @@ export default function WorkoutPage() {
                       <Label>Day of Week</Label>
                       <Select value={selectedDay} onValueChange={(val) => val && setSelectedDay(val)}>
                         <SelectTrigger>
-                          <SelectValue />
+                          <span className={`flex-1 text-left truncate ${!selectedDay ? 'text-muted-foreground' : ''}`}>
+                            {selectedDay ? DAYS[parseInt(selectedDay)] : "Select day"}
+                          </span>
                         </SelectTrigger>
                         <SelectContent>
                           {DAYS.map((day, idx) => (
@@ -262,7 +300,9 @@ export default function WorkoutPage() {
                       <Label>Exercise</Label>
                       <Select value={selectedScheduleExercise} onValueChange={(val) => val && setSelectedScheduleExercise(val)}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select exercise" />
+                          <span className={`flex-1 text-left truncate ${!selectedScheduleExercise ? 'text-muted-foreground' : ''}`}>
+                            {selectedScheduleExercise ? exercises.find(e => e.id === selectedScheduleExercise)?.name : "Select exercise"}
+                          </span>
                         </SelectTrigger>
                         <SelectContent>
                           {exercises.map(e => (
@@ -349,13 +389,34 @@ export default function WorkoutPage() {
                     exercises.map(ex => (
                       <div key={ex.id} className="flex items-center justify-between p-3 rounded-lg bg-black/20 hover:bg-black/40 transition-colors">
                         <span className="font-medium">{ex.name}</span>
-                        <Settings className="h-4 w-4 text-muted-foreground" />
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => openEditExercise(ex)}>
+                          <Settings className="h-4 w-4" />
+                        </Button>
                       </div>
                     ))
                   )}
                 </div>
               </ScrollArea>
             </Card>
+
+            <Dialog open={isEditExerciseOpen} onOpenChange={setIsEditExerciseOpen}>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Edit Exercise</DialogTitle>
+                  <DialogDescription>Modify or delete this exercise.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Name</Label>
+                    <Input value={editExerciseName} onChange={e => setEditExerciseName(e.target.value)} />
+                  </div>
+                </div>
+                <DialogFooter className="flex justify-between sm:justify-between items-center w-full">
+                  <Button variant="destructive" onClick={handleDeleteExercise}>Delete</Button>
+                  <Button onClick={handleUpdateExercise}>Save Changes</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
         </Tabs>
       </main>
